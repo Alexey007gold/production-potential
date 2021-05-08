@@ -27,11 +27,12 @@ local function show_gui(player)
   local frame = player.gui.screen.add({
     type = "frame",
     name = "pp-main-frame",
-    caption = "Production potential",
     direction = "vertical"
   })
+  build_titlebar(frame)
   frame.force_auto_center()
   frame.style.maximal_height = 860
+  frame.style.minimal_width = 500
 
   local inner_frame = frame.add({
     type = "frame",
@@ -41,8 +42,10 @@ local function show_gui(player)
   local scroll_pane = inner_frame.add({
     type = "scroll-pane"
   })
+  scroll_pane.style.padding = { 4, 4, 4, 4 }
 
   local sorted_potential = get_production_sorted_by_potential(player.force)
+  local items = {}
   for _, item in ipairs(sorted_potential) do
     local flow = scroll_pane.add({
       type = "flow",
@@ -54,19 +57,65 @@ local function show_gui(player)
       sprite = (item.type == "item" and "item/" or "fluid/") .. item.name,
       tooltip = (item.type == "item" and game.item_prototypes or game.fluid_prototypes)[item.name].localised_name
     })
-    flow.add({
+    local bar = flow.add({
       type = "progressbar",
       style = "statistics_progressbar",
       value = item.potential
     })
+    bar.style.horizontally_stretchable = true
     local label = flow.add({
       type = "label",
       style = "electric_usage_label",
       caption = util.format_number(item.actual_per_minute, true) .. "/m"
     })
     label.style.horizontal_align = "right"
+    table.insert(items, { name = item.name, gui = flow })
   end
+  global[player.index] = global[player.index] or {}
+  global[player.index].items = items
   player.opened = frame
+end
+
+function build_titlebar(frame)
+  local flow = frame.add({
+    name = "titlebar",
+    type = "flow",
+    direction = "horizontal",
+  })
+  flow.drag_target = frame
+  flow.add({
+    type = "label",
+    style = "frame_title",
+    caption = "Production potential",
+    ignored_by_interaction = true
+  })
+  flow.style.horizontal_spacing = 8
+  flow.style.bottom_padding = 4
+
+  local filler = flow.add({
+    type = "empty-widget",
+    style = "draggable_space_header",
+    ignored_by_interaction = true
+  })
+  filler.style.right_margin = 4
+  filler.style.height = 24
+  filler.style.horizontally_stretchable = true
+
+  flow.add({
+    type = "sprite-button",
+    style = "frame_action_button",
+    sprite = "utility/search_white",
+    hovered_sprite = "utility/search_black",
+    tags = { action = "pp-toggle-search" }
+  })
+
+  flow.add({
+    type = "sprite-button",
+    style = "close_button",
+    sprite = "utility/close_white",
+    hovered_sprite = "utility/close_black",
+    tags = { action = "pp-close-gui" }
+  })
 end
 
 function get_production_sorted_by_potential(force)
@@ -135,7 +184,7 @@ function get_actual_production(force, name, type)
   })
 end
 
-script.on_event(defines.events.on_gui_click, function(event)
+script.on_event({defines.events.on_gui_click, defines.events.on_gui_text_changed}, function(event)
   if event.element.name == "pp-toggle-gui" then
     local player = game.get_player(event.player_index)
     local center = player.gui.screen
@@ -145,7 +194,40 @@ script.on_event(defines.events.on_gui_click, function(event)
       show_gui(player)
     end
   end
+
+  local player = game.get_player(event.player_index)
+  local center = player.gui.screen
+  local frame = player.gui.screen["pp-main-frame"]
+  if not frame or not frame.valid then return end
+
+  local action = event.element.tags.action
+  if action == "pp-close-gui" then
+    frame.destroy()
+  elseif action == "pp-toggle-search" then
+    if frame["titlebar"]["search-textfield"] then
+       frame["titlebar"]["search-textfield"].destroy()
+       apply_filter(event.player_index, "")
+    else
+      local search_field = frame["titlebar"].add({
+        name = "search-textfield",
+        type = "textfield",
+        style = "titlebar_search_textfield",
+        tags = { action = "pp-set-search-term" },
+        index = 3
+      })
+      search_field.focus()
+    end
+  elseif action == "pp-set-search-term" then
+    local filter = event.element.text
+    apply_filter(event.player_index, filter)
+  end
 end)
+
+function apply_filter(player_index, filter)
+  for _, item in ipairs(global[player_index].items) do
+    item.gui.visible = string.find(item.name, filter:lower()) and true or false
+  end
+end
 
 script.on_event(defines.events.on_gui_closed, function(event)
   if event.element and event.element.name == "pp-main-frame" then
