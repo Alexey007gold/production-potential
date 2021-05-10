@@ -1,38 +1,17 @@
-do
-  local mod_gui = require("mod-gui")
-  local function create_button(player)
-    mod_gui.get_button_flow(player).add({
-      name = "pp-toggle-gui",
-      type = "button",
-      caption = "PP",
-      style = mod_gui.button_style
-    })
-  end
-
-  script.on_init(function()
-    for _, player in pairs(game.players) do
-      create_button(player)
-    end
-  end)
-
-  script.on_event(defines.events.on_player_created, function(event)
-    local player = game.get_player(event.player_index)
-    create_button(player)
-  end)
-end
-
 local util = require("util")
 
 local function show_gui(player)
-  local frame = player.gui.screen.add({
+  local frame = player.gui.relative.add({
     type = "frame",
     name = "pp-main-frame",
-    direction = "vertical"
+    direction = "vertical",
+    anchor = {
+      gui = defines.relative_gui_type.production_gui,
+      position = defines.relative_gui_position.right
+    }
   })
   build_titlebar(frame)
-  frame.force_auto_center()
-  frame.style.maximal_height = 860
-  frame.style.minimal_width = 500
+  frame.style.minimal_width = 352
 
   local inner_frame = frame.add({
     type = "frame",
@@ -43,6 +22,7 @@ local function show_gui(player)
     type = "scroll-pane"
   })
   scroll_pane.style.padding = { 4, 4, 4, 4 }
+  scroll_pane.style.vertically_stretchable = true
 
   local sorted_potential = get_production_sorted_by_potential(player.force)
   local items = {}
@@ -73,7 +53,6 @@ local function show_gui(player)
   end
   global[player.index] = global[player.index] or {}
   global[player.index].items = items
-  player.opened = frame
 end
 
 function build_titlebar(frame)
@@ -82,11 +61,10 @@ function build_titlebar(frame)
     type = "flow",
     direction = "horizontal",
   })
-  flow.drag_target = frame
   flow.add({
     type = "label",
     style = "frame_title",
-    caption = "Production potential",
+    caption = "Potential",
     ignored_by_interaction = true
   })
   flow.style.horizontal_spacing = 8
@@ -107,14 +85,6 @@ function build_titlebar(frame)
     sprite = "utility/search_white",
     hovered_sprite = "utility/search_black",
     tags = { action = "pp-toggle-search" }
-  })
-
-  flow.add({
-    type = "sprite-button",
-    style = "close_button",
-    sprite = "utility/close_white",
-    hovered_sprite = "utility/close_black",
-    tags = { action = "pp-close-gui" }
   })
 end
 
@@ -185,25 +155,12 @@ function get_actual_production(force, name, type)
 end
 
 script.on_event({defines.events.on_gui_click, defines.events.on_gui_text_changed}, function(event)
-  if event.element.name == "pp-toggle-gui" then
-    local player = game.get_player(event.player_index)
-    local center = player.gui.screen
-    if center["pp-main-frame"] then
-      center["pp-main-frame"].destroy()
-    else
-      show_gui(player)
-    end
-  end
-
   local player = game.get_player(event.player_index)
-  local center = player.gui.screen
-  local frame = player.gui.screen["pp-main-frame"]
+  local frame = player.gui.relative["pp-main-frame"]
   if not frame or not frame.valid then return end
 
   local action = event.element.tags.action
-  if action == "pp-close-gui" then
-    frame.destroy()
-  elseif action == "pp-toggle-search" then
+  if action == "pp-toggle-search" then
     if frame["titlebar"]["search-textfield"] then
        frame["titlebar"]["search-textfield"].destroy()
        apply_filter(event.player_index, "")
@@ -229,8 +186,22 @@ function apply_filter(player_index, filter)
   end
 end
 
+script.on_event(defines.events.on_gui_opened, function(event)
+  if event.gui_type == defines.gui_type.production then
+    local player = game.get_player(event.player_index)
+    local frame = player.gui.relative["pp-main-frame"]
+    if not frame or not frame.valid then
+      show_gui(player)
+    end
+  end
+end)
+
 script.on_event(defines.events.on_gui_closed, function(event)
-  if event.element and event.element.name == "pp-main-frame" then
-    event.element.destroy()
+  if event.gui_type == defines.gui_type.production then
+    local player = game.get_player(event.player_index)
+    local frame = player.gui.relative["pp-main-frame"]
+    if frame and frame.valid then
+      frame.destroy()
+    end
   end
 end)
