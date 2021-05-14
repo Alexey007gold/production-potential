@@ -109,6 +109,22 @@ end
 
 function get_potential_production(force)
   local potential_production = {}
+  local function add_products(products, productivity_bonus, seconds)
+    for _, output in pairs(products) do
+      local product_amount = util.product_amount(output)
+      local amount_per_second = (product_amount - (output.catalyst_amount or 0)) * (1 + productivity_bonus) / seconds
+      if amount_per_second > 0 then
+        if not potential_production[output.name] then
+          potential_production[output.name] = {
+            name = output.name,
+            type = output.type,
+            potential_per_second = 0
+          }
+        end
+        potential_production[output.name].potential_per_second = amount_per_second + potential_production[output.name].potential_per_second
+      end
+    end
+  end
   for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered({type = {"furnace", "assembling-machine", "rocket-silo"}, force = force})
     for _, machine in pairs(entities) do
@@ -116,21 +132,19 @@ function get_potential_production(force)
       if recipe then
         local recipe_time = recipe.energy
         local actual_time = recipe_time / machine.crafting_speed
-        local productivity_multiplier = 1 + machine.productivity_bonus
-        for _, output in pairs(recipe.products) do
-          local product_amount = util.product_amount(output)
-          local amount_per_second = (product_amount - (output.catalyst_amount or 0)) * productivity_multiplier / actual_time
-          if amount_per_second > 0 then
-            if not potential_production[output.name] then
-              potential_production[output.name] = {
-                name = output.name,
-                type = output.type,
-                potential_per_second = 0
-              }
-            end
-            potential_production[output.name].potential_per_second = amount_per_second + potential_production[output.name].potential_per_second
-          end
-        end
+        local productivity_bonus = machine.productivity_bonus
+        add_products(recipe.products, productivity_bonus, actual_time)
+      end
+    end
+    local mining_entities = surface.find_entities_filtered({type = {"mining-drill"}, force = force})
+    for _, miner in pairs(mining_entities) do
+      if miner.mining_target then
+        local mineable_properties = miner.mining_target.prototype.mineable_properties
+        local recipe_time = mineable_properties.mining_time
+        local crafting_speed = miner.prototype.mining_speed * (1 + miner.speed_bonus)
+        local actual_time = recipe_time / crafting_speed
+        local productivity_bonus = miner.productivity_bonus
+        add_products(mineable_properties.products, productivity_bonus, actual_time)
       end
     end
   end
