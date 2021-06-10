@@ -129,7 +129,7 @@ function get_potential_production(force)
     local entities = surface.find_entities_filtered({type = {"furnace", "assembling-machine", "rocket-silo"}, force = force})
     for _, machine in pairs(entities) do
       local recipe = machine.get_recipe()
-      if recipe then
+      if recipe and not recipe.hidden_from_flow_stats then
         local recipe_time = recipe.energy
         local actual_time = recipe_time / machine.crafting_speed
         local productivity_bonus = machine.productivity_bonus
