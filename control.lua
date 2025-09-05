@@ -15,7 +15,18 @@ local function show_gui(player)
       position = defines.relative_gui_position.right
     }
   })
-  build_titlebar(frame)
+  local produced = 0;
+  local all = 0;
+
+  local sorted_potential = get_production_sorted_by_potential(player.force)
+  for _, item in ipairs(sorted_potential) do
+    if item.potential > 0 then
+        produced = produced + 1
+    end
+    all = all + 1
+  end
+
+  build_titlebar(frame, produced, all)
   frame.style.minimal_width = 272
 
   local inner_frame = frame.add({
@@ -29,7 +40,6 @@ local function show_gui(player)
   scroll_pane.style.padding = { 4, 4, 4, 4 }
   scroll_pane.style.vertically_stretchable = true
 
-  local sorted_potential = get_production_sorted_by_potential(player.force)
   local items = {}
   for _, item in ipairs(sorted_potential) do
     local flow = scroll_pane.add({
@@ -68,7 +78,7 @@ local function show_gui(player)
   storage[player.index].items = items
 end
 
-function build_titlebar(frame)
+function build_titlebar(frame, produced, all)
   local flow = frame.add({
     name = "titlebar",
     type = "flow",
@@ -77,7 +87,7 @@ function build_titlebar(frame)
   flow.add({
     type = "label",
     style = "frame_title",
-    caption = "Potential",
+    caption = "Potential (" .. tostring(produced) .. "/" .. tostring(all) .. ")",
     ignored_by_interaction = true
   })
   flow.style.horizontal_spacing = 8
