@@ -120,7 +120,7 @@ function get_production_sorted_by_potential(force)
 
   local producible = get_all_producible()
   for name, prototype in pairs(prototypes.item) do
-    if not potential_production[name] and producible[name] then
+    if not potential_production[name] and producible[name] and not prototype.hidden then
       table.insert(sorted_potential, {
         name = prototype.name,
         type = prototype.type,
@@ -136,15 +136,9 @@ end
 function get_all_producible()
   local producible = {}
   for recipe_name, recipe in pairs(game.get_player(1).force.recipes) do
-      local results = {}
-      -- recipes can be defined with either `result` or `results`
-      for _, r in pairs(recipe.products) do
-          results[r.name] = true
-      end
-
-      for item_name in pairs(results) do
-          producible[item_name] = true
-      end
+    for _, r in pairs(recipe.products) do
+      producible[r.name] = true
+    end
   end
   return producible
 end
