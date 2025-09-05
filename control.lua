@@ -1,5 +1,10 @@
 local util = require("util")
 
+local function round(num, decimals)
+    local mult = 10 ^ (decimals or 0)
+    return math.floor(num * mult + 0.5) / mult
+end
+
 local function show_gui(player)
   local frame = player.gui.relative.add({
     type = "frame",
@@ -11,7 +16,7 @@ local function show_gui(player)
     }
   })
   build_titlebar(frame)
-  frame.style.minimal_width = 352
+  frame.style.minimal_width = 272
 
   local inner_frame = frame.add({
     type = "frame",
@@ -34,19 +39,27 @@ local function show_gui(player)
     flow.style.vertical_align = "center"
     flow.add({
       type = "sprite",
-      sprite = (item.type == "item" and "item/" or "fluid/") .. item.name,
-      tooltip = (item.type == "item" and game.item_prototypes or game.fluid_prototypes)[item.name].localised_name
+      sprite = (item.type == "fluid" and "fluid/" or "item/") .. item.name,
+      tooltip = (item.type == "fluid" and prototypes.fluid or prototypes.item)[item.name].localised_name
     })
+    --local label = flow.add({
+    --  type = "label",
+    --  style = "electric_usage_label",
+    --  caption = util.format_number(round(item.actual_per_minute, 1), true) .. "/m"
+    --})
+    --label.style.horizontal_align = "left"
     local bar = flow.add({
       type = "progressbar",
       --style = "progressbar_style",
-      value = item.potential
+      value = item.actual_per_minute / item.potential,
+      tooltip = util.format_number(round(item.actual_per_minute, 1), true) .. "/m"
     })
     bar.style.horizontally_stretchable = true
+    bar.style.minimal_width = 50
     local label = flow.add({
       type = "label",
       style = "electric_usage_label",
-      caption = util.format_number(item.actual_per_minute, true) .. "/m"
+      caption = util.format_number(round(item.potential, 1), true) .. "/m"
     })
     label.style.horizontal_align = "right"
     table.insert(items, { name = item.name, gui = flow })
@@ -98,13 +111,42 @@ function get_production_sorted_by_potential(force)
       name = item.name,
       type = item.type,
       actual_per_minute = actual_per_minute,
-      potential = actual_per_minute / (item.potential_per_second * 60)
+      potential = (item.potential_per_second * 60)
     })
   end
   table.sort(sorted_potential, function(item1, item2)
     return item1.potential > item2.potential
   end)
+
+  local producible = get_all_producible()
+  for name, prototype in pairs(prototypes.item) do
+    if not potential_production[name] and producible[name] then
+      table.insert(sorted_potential, {
+        name = prototype.name,
+        type = prototype.type,
+        actual_per_minute = 0,
+        potential = 0
+      })
+    end
+  end
+
   return sorted_potential
+end
+
+function get_all_producible()
+  local producible = {}
+  for recipe_name, recipe in pairs(game.get_player(1).force.recipes) do
+      local results = {}
+      -- recipes can be defined with either `result` or `results`
+      for _, r in pairs(recipe.products) do
+          results[r.name] = true
+      end
+
+      for item_name in pairs(results) do
+          producible[item_name] = true
+      end
+  end
+  return producible
 end
 
 function get_potential_production(force)
@@ -126,6 +168,7 @@ function get_potential_production(force)
     end
   end
   for _, surface in pairs(game.surfaces) do
+    --boiler, generator, offshore-pump?
     local entities = surface.find_entities_filtered({type = {"furnace", "assembling-machine", "rocket-silo"}, force = force})
     for _, machine in pairs(entities) do
       local recipe = machine.get_recipe()
