@@ -39,7 +39,7 @@ local function show_gui(player)
     })
     local bar = flow.add({
       type = "progressbar",
-      style = "statistics_progressbar",
+      --style = "progressbar_style",
       value = item.potential
     })
     bar.style.horizontally_stretchable = true
@@ -51,8 +51,8 @@ local function show_gui(player)
     label.style.horizontal_align = "right"
     table.insert(items, { name = item.name, gui = flow })
   end
-  global[player.index] = global[player.index] or {}
-  global[player.index].items = items
+  storage[player.index] = storage[player.index] or {}
+  storage[player.index].items = items
 end
 
 function build_titlebar(frame)
@@ -82,8 +82,8 @@ function build_titlebar(frame)
   flow.add({
     type = "sprite-button",
     style = "frame_action_button",
-    sprite = "utility/search_white",
-    hovered_sprite = "utility/search_black",
+    sprite = "utility/search",
+    hovered_sprite = "utility/search",
     tags = { action = "pp-toggle-search" }
   })
 end
@@ -152,20 +152,24 @@ function get_potential_production(force)
 end
 
 function get_actual_production(force, name, type)
-  local statistics
-  if type == "item" then
-    statistics = force.item_production_statistics
-  elseif type == "fluid" then
-    statistics = force.fluid_production_statistics
-  else
-    return 0
+  local actual = 0
+  for _, surface in pairs(game.surfaces) do
+      local statistics
+      if type == "item" then
+          statistics = force.get_item_production_statistics(surface)
+      elseif type == "fluid" then
+          statistics = force.get_fluid_production_statistics(surface)
+      else
+          return 0
+      end
+      actual = actual + statistics.get_flow_count({
+          name = name,
+          category = 'input', -- input == true is production
+          precision_index = defines.flow_precision_index.ten_minutes,
+          count = true
+      })
   end
-  return statistics.get_flow_count({
-    name = name,
-    input = true, -- input == true is production
-    precision_index = defines.flow_precision_index.ten_minutes,
-     count = true
-  })
+  return actual
 end
 
 script.on_event({defines.events.on_gui_click, defines.events.on_gui_text_changed}, function(event)
@@ -182,7 +186,7 @@ script.on_event({defines.events.on_gui_click, defines.events.on_gui_text_changed
       local search_field = frame["titlebar"].add({
         name = "search-textfield",
         type = "textfield",
-        style = "titlebar_search_textfield",
+        --style = "titlebar_search_textfield",
         tags = { action = "pp-set-search-term" },
         index = 3
       })
@@ -195,7 +199,7 @@ script.on_event({defines.events.on_gui_click, defines.events.on_gui_text_changed
 end)
 
 function apply_filter(player_index, filter)
-  for _, item in ipairs(global[player_index].items) do
+  for _, item in ipairs(storage[player_index].items) do
     item.gui.visible = string.find(item.name, filter:lower()) and true or false
   end
 end
